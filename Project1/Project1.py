@@ -1,82 +1,81 @@
-import numpy as np
-import matplotlib.pyplot as plt
+import numpy
+from amuse.community.fi.interface import Fi
+from amuse.lab import *
+from amuse.units import units
+from amuse.units import nbody_system
+from amuse.ext.protodisk import ProtoPlanetaryDisk
 
-import amuse.lab as al
-import amuse.ext as ae
+def rotate(disk, a, b, c):
+    """ Function to rotate a disk.
+        
+        :disk: ProtoPlanetaryDisk particles to be rotated
+        :param a: angle in the x axis
+        :param b: angle in the y axis
+        :param c: angle in the z axis"""
+          
+    a = numpy.radians(a)
+    ca, sa = numpy.cos(a), numpy.sin(a)
+    Rx = numpy.array([[1, 0, 0], [0, ca, -sa], [0, sa, ca]])
 
+    b = numpy.radians(b)
+    cb, sb = numpy.cos(b), numpy.sin(b)
+    Ry = numpy.array([[cb, 0, sb], [0, 1, 0], [-sb, 0, cb]])
 
-star1 = al.Particle(mass=10.  | al.units.MSun)
-star2 = al.Particle(mass=0.08 | al.units.MSun)
+    c = numpy.radians(c)
+    cc, sc = numpy.cos(c), numpy.sin(c)
+    Rz = numpy.array([[cc, -sc, 0], [sc, cc, 0], [0, 0, 1]])
 
+    R = numpy.dot(Rz, numpy.dot(Ry, Rx))
 
-print 'Starting EVtwin'
+    for p in disk:
+        r = numpy.array([p.x, p.y, p.z])
+        v = numpy.array([p.vx, p.vy, p.vz])
 
-stellar = al.EVtwin()
-#stellar = al.MESA()
+        nr = numpy.dot(R, r)
+        nv = numpy.dot(R, v)
 
-print 'Started EVtwin'
+        p.x, p.y, p.z = nr[0], nr[1], nr[2]
+        p.vx, p.vy, p.vz = nv[0], nv[1], nv[2]
 
-stellar.particles.add_particle( star1 )
-stellar.particles.add_particle( star2 )
-
-print 'Added particles'
-
-stellar.evolve_model( 1. | al.units.Myr )
-
-print 'Finished initial evolve'
-
-
-N_sph = 1000
-
-star1_sph = ae.star_to_sph.convert_stellar_model_to_SPH(stellar.particles[0], N_sph, seed=874325)
-star2_sph = ae.star_to_sph.convert_stellar_model_to_SPH(stellar.particles[1], N_sph, seed=874325)
-
-print 'Converted stellar models'
-
-stellar.stop()
-
-
-distance = 10. | al.units.RSun
-
-star2_sph.x += distance
-star2_sph.vx -= np.sqrt(2.*al.units.G*stellar.particles.mass.sum()/distance)
+    return disk
 
 
-sph_particles = al.Particles()
-sph_particles.add_particles(star1_sph)
-sph_particles.add_particles(star2_sph)
-sph_particles.move_to_center()
+# Create a star with 1 solar masses
+stars = Particles(mass=1. | units.MSun)
 
+# Solar radius
+stars[0].radius = 700000. | units.km
 
-converter = al.nbody_system.nbody_to_si(1. | al.units.hour, 1. | al.units.RSun)
+# Locate the star at a certain position
+stars[0].x, stars[0].y, stars[0].z = 100. | units.au, 0. | units.au, 0. | units.au
 
-hydro = al.Gadget2(converter)
-hydro.gas_particles.add_particles(sph_particles)
+# Give it a certain velocity
+stars[0].vx, stars[0].vy, stars[0].vz = 20. | (units.au / units.yr), 0. | (units.au / units.yr), 0. | (units.au / units.yr)
 
-hydro.evolve_model( 10. | al.units.yr )
-hydro.gas_particles.copy_values_of_attributes_to(['x', 'y', 'z', 'vx', 'vy', 'vz', 'density', 'u', 'pressure'], sph_particles)
+# Create a converter. In this way we turn n-body system units to the physical units we are interested in
+converter = nbody_system.nbody_to_si(1. | units.MSun, 1. | units.AU)
 
-hydro.stop()
+# Create protoplanetary disk
+N_particles = 1000  # Number of SPH particles
+disk = ProtoPlanetaryDisk(N_particles, convert_nbody=converter, densitypower=1.5, Rmin=0.5 | units.au, Rmax=100 | units.au, q_out=1.)
+print disk
+disk_particles = disk.result  # Disk particles
+disk_particles.h_smooth = 0.06 | units.AU  # Smoothing length
 
+# Rotate the disk 90 degrees around x axis
+disk = rotate(disk_particles, 90, 0, 0)
 
-sph_particles.move_to_center()
+# Start SPH code and add particles
+sph = Fi(converter)
+sph.gas_particles.add_particles(disk_particles)  # Disk particles are added as gas particles
+sph.dm_particles.add_particles(stars[0])  # Star is added as dark matter particle
 
-star3 = al.convert_SPH_to_stellar_model(sph_particles)
+# Evolve code in time steps
+t_end = 100 | units.yr
+dt = 1 | units.yr
+t = 0 | units.yr
 
-print 'Converted SPH'
-
-stellar = al.EVtwin()
-stellar.new_particle_from_model(star3, 0. | al.units.Myr)
-
-for i in range(5):
-
-	print "Starting step " + str(i+1)
-
-	stellar.evolve_model( 1. | al.units.Myr )
-
-	print stellar.particles[0].mass
-	print stellar.particles[0].radius
-	print stellar.particles[0].temperature
-	print stellar.particles[0].stellar_type
-
-stellar.stop()
+while t < t_end:
+    t += dt
+    print t
+    sph.evolve_model(t)
