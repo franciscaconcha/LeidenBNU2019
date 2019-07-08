@@ -40,7 +40,7 @@ def rotate(disk, a, b, c):
     return disk
 
 
-# Create a star with 1 solar masses
+# Create star with 1 solar mass
 stars = Particles(mass=1. | units.MSun)
 
 # Solar radius
@@ -53,14 +53,14 @@ stars[0].x, stars[0].y, stars[0].z = 100. | units.au, 0. | units.au, 0. | units.
 stars[0].vx, stars[0].vy, stars[0].vz = 20. | (units.au / units.yr), 0. | (units.au / units.yr), 0. | (units.au / units.yr)
 
 # Create a converter. In this way we turn n-body system units to the physical units we are interested in
-converter = nbody_system.nbody_to_si(1. | units.MSun, 1. | units.AU)
+converter = nbody_system.nbody_to_si(1. | units.MSun, 1. | units.au)
 
 # Create protoplanetary disk
 N_particles = 1000  # Number of SPH particles
-disk = ProtoPlanetaryDisk(N_particles, convert_nbody=converter, densitypower=1.5, Rmin=0.5 | units.au, Rmax=100 | units.au, q_out=1.)
-print disk
+disk = ProtoPlanetaryDisk(N_particles, convert_nbody=converter, densitypower=1.5, Rmin=0.5, Rmax=100, q_out=1.)  # Rmin and Rmax in AU
+
 disk_particles = disk.result  # Disk particles
-disk_particles.h_smooth = 0.06 | units.AU  # Smoothing length
+disk_particles.h_smooth = 0.06 | units.au  # Smoothing length
 
 # Rotate the disk 90 degrees around x axis
 disk = rotate(disk_particles, 90, 0, 0)
