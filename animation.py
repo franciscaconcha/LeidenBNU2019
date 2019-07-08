@@ -58,4 +58,4 @@ ANI = ani.FuncAnimation(fig, update, interval=1000.*animation_time/float(N),
                         blit=True)
 
 writer = ani.FFMpegWriter(bitrate=1800, fps=15)
-ANI.save(moviename+'mp4', writer=writer)
+ANI.save(moviename+'.mp4', writer=writer)
